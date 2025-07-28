@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registrar Ocorrência</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#003c70" />
+  <link rel="icon" href="icone192.png" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: linear-gradient(135deg, #0078D4 0%, #005A9E 100%);
+    }
+    .topo-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-bottom: 4px solid #005a9e;
+    }
+    .menu-superior {
+      background-color: #003c70;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      flex-wrap: wrap;
+    }
+    .menu-superior h1 {
+      font-size: 22px;
+      margin: 5px 0;
+      color: white;
+    }
+    .menu-superior button {
+      background-color: #0078D4;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 5px 0;
+    }
+    .menu-superior button:hover {
+      background-color: #005a9e;
+    }
+    .container {
+      max-width: 800px;
+      margin: 30px auto;
+      background-color: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+    h2 {
+      text-align: center;
+      color: #003c70;
+      margin-bottom: 25px;
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin: 15px 0 5px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      background-color: #e0e0e0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button.submit {
+      width: 100%;
+      padding: 14px;
+      background-color: #0078D4;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    button.submit:hover {
+      background-color: #005A9E;
+    }
+    @media (max-width: 600px) {
+      .menu-superior {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .container {
+        margin: 20px 10px;
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <audio id="alertaSom" src="/static/notificacao.mp3" preload="auto"></audio>
+  <script>
+let ultimaOcorrenciaID = null;
+let piscando = false;
+let alertaInterval = null;
+let originalTitle = document.title;
+let primeiraVez = true;
+
+function iniciarAlertaNovaOcorrencia() {
+  if (piscando) return;
+  piscando = true;
+  let estado = false;
+  alertaInterval = setInterval(() => {
+    document.title = estado ? "🟥 NOVA OCORRÊNCIA 🟨" : "⚠️ ATENÇÃO!";
+    estado = !estado;
+  }, 700);
+  const audio = document.getElementById("alertaSom");
+  if (audio) audio.play();
+}
+
+function pararAlerta() {
+  clearInterval(alertaInterval);
+  document.title = originalTitle;
+  piscando = false;
+}
+
+async function verificarNovasOcorrencias() {
+  const baseUrl = location.hostname.includes("localhost")
+    ? "http://localhost:3000"
+    : "https://ocorrenciabicudo.onrender.com"; // ajuste aqui se necessário
+
+  try {
+  const res = await fetch("/ocorrencias");
+    const data = await res.json();
+
+    const novaMaisRecente = data[0]?._id;
+
+    if (!primeiraVez && ultimaOcorrenciaID && novaMaisRecente !== ultimaOcorrenciaID) {
+      iniciarAlertaNovaOcorrencia();
+    }
+
+    ultimaOcorrenciaID = novaMaisRecente;
+    window.todas = data;
+
+    if (typeof mostrarOcorrencias === "function") {
+      mostrarOcorrencias(data);
+    }
+
+    primeiraVez = false;
+  } catch (e) {
+    console.error("Erro ao verificar novas ocorrências:", e);
+  }
+}
+
+// Executar a verificação inicial e depois a cada 5 segundos
+verificarNovasOcorrencias();
+setInterval(verificarNovasOcorrencias, 5000);
+window.addEventListener("click", pararAlerta);
+</script>
+
+  
+  <!-- Botão escondido para habilitar áudio -->
+  <button id="ativarSom" style="display:none;">Ativar Som</button>
+  <img src="/static/bicudo-2025.jpg" alt="Bicudo 2025" class="topo-img" />
+  <div class="menu-superior">
+    <h1>Registrar Ocorrência</h1>
+    <button onclick="acessarLista()">🔒 Acessar Lista</button>
+  </div>
+  <div class="container">
+    <h2>Formulário de Ocorrência Disciplinar</h2>
+    <label for="nomeAluno">Nome do Aluno:</label>
+    <input type="text" id="nomeAluno" />
+    <label for="serie">Série:</label>
+    <input type="text" id="serie" />
+    <label for="professor">Professor/Funcionário:</label>
+    <select id="professor">
+      <option value="">Selecione o Professor</option>
+      <option>ALINE DAL PONTE SABBAG</option>
+      <option>ALINE PRISCILA GARCIA DA SILVA</option>
+      <option>ANDREIA DE FATIMA GOMES PIEMONTE</option>
+      <option>ANTONIO JOSÉ DO SANTOS JUNIOR</option>
+      <option>CAIO HENRIQUE ESTRELA CARDIA</option>
+      <option>CLEBER ALBERTO GOMES</option>
+      <option>CRISTINA BALDINOTI</option>
+      <option>EDCARLOS DOS SANTOS</option>
+      <option>EDINEIA APARECIDA DE SOUSA</option>
+      <option>ELIANE ANDREA DIOMEDES</option>
+      <option>ELIZA GILIOLLI DOS SANTOS</option>
+      <option>FELIPE BEIRO DE ALMEIDA</option>
+      <option>FLAVIO HENRIQUE CHAVES FILHO</option>
+      <option>GABRIEL RODRIGUES DA SILVA</option>
+      <option>GISLAINE DIAS CAPUTO</option>
+      <option>GRAZIELLE CHRISTINE MARANGONI SCARMANHÃ</option>
+      <option>GRAZIELLE DE OLIVEIRA SANTOS</option>
+      <option>ITALO BERTONCINI</option>
+      <option>IZAIAS NOGUEIRA RODRIGUES</option>
+      <option>JANAINA TOGNON</option>
+      <option>JAQUELINE PADERES SCORSAFAVA GARCIA</option>
+      <option>JOSELILIAN LOPES MIRALHA</option>
+      <option>JULIANA DE FATIMA SILVA SEGANTIN</option>
+      <option>KLEER GONÇALVES DOS SANTOS</option>
+      <option>LEANDRO HENRIQUE DE SOUZA BEZERRA</option>
+      <option>LUCILENE ARAUJO ROMANIW RAYMUNDO</option>
+      <option>LURDES DOS SANTOS ELIAS LIMA</option>
+      <option>MAGDA APARECIDA DE OLIVEIRA PRADO</option>
+      <option>MARCIA CRISTINA SIGEMURA</option>
+      <option>MARCIO ENRIQUE STANCKEVIZ</option>
+      <option>MARIA CANDIDA BRANCO DOS SANTOS</option>
+      <option>MARIA LUIZA MARTINS DE ARAUJO</option>
+      <option>MARIANA PAIVA RAMOS</option>
+      <option>MARIANA SAKER DE CASTRO PAIVA</option>
+      <option>MATHEUS SANTOS DE OLIVEIRA</option>
+      <option>MILCE FERREIRA DE MOURA</option>
+      <option>MIRIAM BEIRO DE ALMEIDA</option>
+      <option>NATHÁLIA VERONESE MARTINS</option>
+      <option>ORIEL DE OLIVEIRA E SILVA</option>
+      <option>RAFAEL MARTINS DOS SANTOS</option>
+      <option>RAQUEL CRISTINA ROSSIGALLI BOLFI</option>
+      <option>RENATO DAVID VALENTE</option>
+      <option>RODRIGO BATISTA</option>
+      <option>ROSANA APARECIDA ROSSI NOGUEIRA</option>
+      <option>SAMUEL MACEDO PERICO</option>
+      <option>SAVIA BETHANIA CAVALCANTI</option>
+      <option>SILENE BERTASSI</option>
+      <option>SONIA MARIA NABAS DOS SANTOS</option>
+      <option>SUELI BATISTETTI VICENTE</option>
+      <option>SUZANA CARTLA VIANA JANUÁRIO</option>
+      <option>VERA CLAUDIA FERRES ANSUINO</option>
+    </select>
+    <label>Tipo de Ocorrência:</label>
+    <div class="checkbox-group">
+     <label><input type="checkbox" value="Sem material em sala de aula" /> Sem material</label>
+      <label><input type="checkbox" value="Chegou atrasado(a) em sala" /> Atraso</label>
+      <label><input type="checkbox" value="Uso indevido fones e/ou celular" /> Uso de celular</label>
+      <label><input type="checkbox" value="Conversa em demasia" /> Conversa em excesso</label>
+      <label><input type="checkbox" value="Não para quieto(a) em seu lugar" /> Inquieto(a)</label>
+      <label><input type="checkbox" value="Desacato/desrespeito ou agressão verbal" /> Desrespeito</label>
+      <label><input type="checkbox" value="Dano ao patrimônio público" /> Dano ao patrimônio</label>
+      <label><input type="checkbox" value="Não fez atividades em sala de aula" /> Não fez atividades</label>
+      <label><input type="checkbox" value="Dorme em sala de aula" /> Dorme em sala</label>
+      <label><input type="checkbox" value="Agressão física" /> Agressão física</label>
+      <label><input type="checkbox" value="Outro" /> Outro</label>
+    </div>
+    <label for="descricao">Descrição:</label>
+    <textarea id="descricao" rows="4"></textarea>
+    <label for="assinatura">Assinatura Digital:</label>
+    <input type="text" id="assinatura" />
+    <button class="submit" onclick="enviarOcorrencia()">Salvar a Ocorrência</button>
+  </div>
+
+     <script>
+  function enviarOcorrencia() {
+    const baseUrl = location.hostname.includes("localhost")
+      ? "http://localhost:3000"
+      : "https://ocorrenciabicudo.onrender.com";
+
+    const nomeAluno = document.getElementById('nomeAluno').value;
+    const serie = document.getElementById('serie').value;
+    const professor = document.getElementById('professor').value;
+    const assinatura = document.getElementById('assinatura').value;
+    const descricao = document.getElementById('descricao').value;
+    const ocorrencias = Array.from(document.querySelectorAll('input[type=checkbox]:checked')).map(el => el.value);
+
+    if (!nomeAluno || !serie || !professor || !assinatura) {
+      alert("Preencha todos os campos obrigatórios!");
+      return;
+    }
+
+    const dados = { nomeAluno, serie, professor, assinatura, descricao, ocorrencias };
+
+   fetch('/ocorrencias', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(dados)
+})
+
+    .then(response => {
+      if (response.ok) {
+        alert("Ocorrência registrada com sucesso!");
+        location.reload();
+      } else {
+        alert("Erro ao registrar ocorrência.");
+      }
+    })
+    .catch(() => alert("Erro ao conectar com o servidor."));
+  }
+  function acessarLista() {
+  const senha = prompt("Digite a senha para acessar a lista:");
+  if (senha === "admin123") {
+    window.location.href = "/listar"; // ✅ correto: usa a rota Flask
+  } else {
+    alert("Senha incorreta. Acesso negado.");
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8">
+    <title>Lista de Ocorrências</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+    body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; }
+    header { background-color: #003c70; color: white; padding: 20px; text-align: center; }
+    .container { max-width: 960px; margin: auto; padding: 20px; background: white; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .top-bar input { padding: 10px; width: 100%; margin: 10px 0; }
+    .ocorrencia { display: flex; justify-content: space-between; align-items: flex-start; background: #f9f9f9; padding: 12px; border-left: 5px solid #0078D4; margin-bottom: 12px; border-radius: 6px; }
+    .info { flex: 1; }
+    .actions { display: flex; flex-direction: column; align-items: flex-end; }
+    .btn { padding: 6px 12px; border: none; border-radius: 4px; margin-top: 4px; cursor: pointer; font-size: 13px; }
+    .btn-pdf { background: #28a745; color: white; }
+    .btn-del { background: #dc3545; color: white; }
+    .btn-bulk { background: #6c757d; color: white; margin-right: 10px; }
+    .checkbox { margin-right: 10px; }
+    .summary { font-weight: bold; margin: 10px 0; }
+    canvas { background: #fff; border: 1px solid #ccc; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; }
+    th { background-color: #0078D4; color: white; text-align: left; }
+  </style>
+  </head>
+  <body>
+    <header>Gestão de Ocorrências (Bicudo)</header>
+    <div class="container">
+      <div class="top-bar">
+        <input type="text" id="filtro" placeholder="Filtrar por nome do aluno..." oninput="filtrar()" />
+        <div>
+          <button class="btn btn-bulk" onclick="selecionarTudo()">Selecionar tudo</button>
+          <button class="btn btn-bulk" onclick="excluirSelecionados()">Excluir selecionados</button>
+        </div>
+      </div>
+      <div class="summary" id="resumo">Total: 0 ocorrências | 0 alunos únicos | 0 selecionadas</div>
+      <div id="listaOcorrencias">Carregando...</div>
+      <canvas id="grafico" width="920" height="300"></canvas>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+    let todas = [], selecionadas = new Set();
+
+    function extrairNomeOriginal(nomeComData) {
+      return nomeComData.split(" - ").slice(1).join(" - ") || nomeComData;
+    }
+
+    async function carregarOcorrencias() {
+      const container = document.getElementById("listaOcorrencias");
+      container.innerHTML = "<p>Carregando...</p>";
+     const res = await fetch("/ocorrencias");
+      const data = await res.json();
+      todas = data;
+      mostrarOcorrencias(data);
+    }
+
+    function mostrarOcorrencias(lista) {
+      const container = document.getElementById("listaOcorrencias");
+      container.innerHTML = "";
+      const alunoContador = {};
+
+      lista.forEach((data) => {
+        const nomeOriginal = extrairNomeOriginal(data.nomeAluno);
+        alunoContador[nomeOriginal] = (alunoContador[nomeOriginal] || 0) + 1;
+
+        const div = document.createElement("div");
+        div.className = "ocorrencia";
+        div.innerHTML = `
+          <div class="checkbox"><input type="checkbox" onchange="toggleSelecionado('${data._id}')" id="check_${data._id}"></div>
+          <div class="info">
+            <table>
+              <tr><th>Campo</th><th>Informação</th></tr>
+              <tr><td>Aluno</td><td>${nomeOriginal}</td></tr>
+              <tr><td>Série</td><td>${data.serie}</td></tr>
+              <tr><td>Professor</td><td>${data.professor}</td></tr>
+              <tr><td>Data</td><td>${new Date(data.dataHora).toLocaleString()}</td></tr>
+              <tr><td>Ocorrências</td><td>${(data.ocorrencias || []).join(", ")}</td></tr>
+              <tr><td>Descrição</td><td>${data.descricao || ""}</td></tr>
+            </table>
+          </div>
+          <div class="actions">
+            <button class="btn btn-pdf" onclick="gerarPDF('${nomeOriginal}', '${data.serie}', '${data.professor}', '${new Date(data.dataHora).toLocaleString()}', \`${(data.ocorrencias || []).join(", " )}\`, \`${data.descricao || ""}\`)">PDF</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+
+      atualizarResumo(lista.length, alunoContador);
+      gerarGrafico(alunoContador);
+    }
+
+    function toggleSelecionado(id) {
+      if (selecionadas.has(id)) {
+        selecionadas.delete(id);
+      } else {
+        selecionadas.add(id);
+      }
+      atualizarResumo();
+    }
+
+    function selecionarTudo() {
+      todas.forEach(o => {
+        selecionadas.add(o._id);
+        document.getElementById("check_" + o._id).checked = true;
+      });
+      atualizarResumo();
+    }
+
+    function atualizarResumo(total = todas.length, contador = {}) {
+      const alunos = Object.keys(contador).length;
+      document.getElementById("resumo").textContent = `Total: ${total} ocorrências | ${alunos} alunos únicos | ${selecionadas.size} selecionadas`;
+    }
+
+    function gerarPDF(nome, serie, professor, data, ocorrencias, descricao) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.setFillColor(240, 240, 240);
+      doc.rect(10, 10, 190, 100, 'F');
+      doc.setFontSize(14);
+      doc.setTextColor(0, 60, 112);
+      doc.text(`Registro de Ocorrência`, 20, 20);
+
+      doc.setFontSize(11);
+      doc.setTextColor(0);
+      const rows = [
+        ['Campo', 'Informação'],
+        ['Aluno', nome],
+        ['Série', serie],
+        ['Professor', professor],
+        ['Data', data],
+        ['Ocorrências', ocorrencias],
+        ['Descrição', descricao]
+      ];
+
+      let y = 30;
+      rows.forEach(([label, value]) => {
+        doc.setFont(undefined, 'bold');
+        doc.text(`${label}:`, 20, y);
+        doc.setFont(undefined, 'normal');
+        const lines = doc.splitTextToSize(value, 120);
+        doc.text(lines, 60, y);
+        y += (lines.length * 10);
+      });
+
+      doc.save(`Ocorrencia_${nome}.pdf`);
+    }
+
+    function gerarGrafico(dados) {
+      const ctx = document.getElementById("grafico").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: Object.keys(dados),
+          datasets: [{
+            label: "Ocorrências por Aluno",
+            data: Object.values(dados),
+            backgroundColor: "#0078D4"
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { title: { display: true, text: "Alunos" } },
+            y: { title: { display: true, text: "Ocorrências" }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function filtrar() {
+      const termo = document.getElementById("filtro").value.toLowerCase();
+      const filtradas = todas.filter(o => extrairNomeOriginal(o.nomeAluno).toLowerCase().includes(termo));
+      mostrarOcorrencias(filtradas);
+    }
+
+    async function excluirSelecionados() {
+      if (selecionadas.size === 0) return alert("Nenhuma ocorrência selecionada.");
+      if (!confirm("Deseja excluir as ocorrências selecionadas?")) return;
+
+      for (const id of selecionadas) {
+        await fetch(`http://localhost:3000/ocorrencias/${id}`, {
+          method: 'DELETE'
+        });
+      }
+      selecionadas.clear();
+      carregarOcorrencias();
+    }
+
+    carregarOcorrencias();
+  </script>
+  </body>
+</html>
