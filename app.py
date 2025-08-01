@@ -9,8 +9,8 @@ CORS(app)
 
 # Conexão com MongoDB Atlas
 client = MongoClient("mongodb+srv://bicudo:bicudo25@cluster0.1txkr5t.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-db = client["ocorrencias"]  # Nome do banco
-colecao = db["registros"]   # Nome da coleção
+db = client["ocorrencias"]
+colecao = db["registros"]
 
 @app.route("/")
 def index():
@@ -19,6 +19,10 @@ def index():
 @app.route("/listar")
 def listar():
     return render_template("listar.html")
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
 
 @app.route("/ocorrencias", methods=["POST"])
 def registrar_ocorrencia():
@@ -39,6 +43,27 @@ def listar_ocorrencias():
 def deletar_ocorrencia(id):
     colecao.delete_one({"_id": ObjectId(id)})
     return jsonify({"mensagem": "Ocorrência excluída."})
+
+# ✅ ROTA PARA ATUALIZAR OBSERVAÇÃO E MEDIDA
+@app.route("/ocorrencias/<id>", methods=["PUT"])
+def atualizar_ocorrencia(id):
+    dados = request.json
+    atualizacao = {}
+
+    if "observacao" in dados:
+        atualizacao["observacao"] = dados["observacao"]
+    if "medidaProvidencia" in dados:
+        atualizacao["medidaProvidencia"] = dados["medidaProvidencia"]
+
+    resultado = colecao.update_one(
+        {"_id": ObjectId(id)},
+        {"$set": atualizacao}
+    )
+
+    if resultado.matched_count:
+        return jsonify({"mensagem": "Ocorrência atualizada com sucesso."}), 200
+    else:
+        return jsonify({"erro": "Ocorrência não encontrada."}), 404
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel de Gráficos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #57a3ee;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: #003c70;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: rgb(203, 203, 229);
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      padding: 15px;
+    }
+    canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
+    .obs-container {
+      max-width: 900px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      resize: vertical;
+      font-size: 14px;
+    }
+    .btn {
+      margin-top: 10px;
+      background: #0078D4;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>📊 Painel Estatístico de Ocorrências</h1>
+
+  <div class="dashboard">
+    <div class="card"><canvas id="graficoAlunos"></canvas></div>
+    <div class="card"><canvas id="graficoSeries"></canvas></div>
+    <div class="card"><canvas id="graficoGravidade"></canvas></div>
+    <div class="card"><canvas id="graficoGravidadePorcentagem"></canvas></div>
+    <div class="card" style="grid-column: 1 / -1;"><canvas id="graficoMeta"></canvas></div>
+  </div>
+
+  <div class="obs-container">
+    <h3>📝 Observações e Análises</h3>
+    <textarea id="textoObs" placeholder="Digite aqui sua análise sobre os dados exibidos..."></textarea>
+    <button class="btn" onclick="salvarPDF()">Salvar Observação em PDF</button>
+  </div>
+
+  <script>
+    async function carregarDados() {
+      const res = await fetch("/ocorrencias");
+      const dados = await res.json();
+
+      const porAluno = {}, porSerie = {}, porGravidade = {}, porMes = {};
+
+      dados.forEach(d => {
+        const nome = d.nomeAluno.split(" - ").slice(1).join(" - ") || d.nomeAluno;
+        porAluno[nome] = (porAluno[nome] || 0) + 1;
+        porSerie[d.serie] = (porSerie[d.serie] || 0) + 1;
+        const grav = d.gravidade || "Não informado";
+        porGravidade[grav] = (porGravidade[grav] || 0) + 1;
+
+        const mes = new Date(d.dataHora).toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+        porMes[mes] = (porMes[mes] || 0) + 1;
+      });
+
+      new Chart(document.getElementById("graficoAlunos"), {
+        type: "bar",
+        data: {
+          labels: Object.keys(porAluno),
+          datasets: [{ label: "Por Aluno", data: Object.values(porAluno), backgroundColor: "#0078D4" }]
+        },
+        options: { plugins: { legend: { display: false } }, responsive: true }
+      });
+
+      new Chart(document.getElementById("graficoSeries"), {
+        type: "pie",
+        data: {
+          labels: Object.keys(porSerie),
+          datasets: [{ data: Object.values(porSerie), backgroundColor: ["#28a745", "#ffc107", "#dc3545"] }]
+        },
+        options: { plugins: { legend: { position: 'bottom' } }, responsive: true }
+      });
+
+      new Chart(document.getElementById("graficoGravidade"), {
+        type: "bar",
+        data: {
+          labels: Object.keys(porGravidade),
+          datasets: [{ label: "Por Gravidade", data: Object.values(porGravidade), backgroundColor: "#dc3545" }]
+        },
+        options: { plugins: { legend: { display: false } }, responsive: true }
+      });
+
+      new Chart(document.getElementById("graficoGravidadePorcentagem"), {
+        type: "doughnut",
+        data: {
+          labels: Object.keys(porGravidade),
+          datasets: [{ data: Object.values(porGravidade), backgroundColor: ["#ffc107", "#fd7e14", "#dc3545"] }]
+        },
+        options: {
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: function(ctx) {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const val = ctx.raw;
+                  const perc = ((val / total) * 100).toFixed(1);
+                  return `${ctx.label}: ${val} (${perc}%)`;
+                }
+              }
+            }
+          },
+          responsive: true
+        }
+      });
+
+      // 📈 Linha com meta
+      const meses = Object.keys(porMes).sort();
+      const valores = meses.map(m => porMes[m]);
+      const meta = valores.map(() => 10); // exemplo: meta de 10 ocorrências/mês
+
+      new Chart(document.getElementById("graficoMeta"), {
+        type: "line",
+        data: {
+          labels: meses,
+          datasets: [
+            { label: "Ocorrências", data: valores, borderColor: "#0078D4", fill: false },
+            { label: "Meta", data: meta, borderColor: "#28a745", borderDash: [5, 5], fill: false }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    function salvarPDF() {
+      const { jsPDF } = window.jspdf;
+      const texto = document.getElementById("textoObs").value;
+      const doc = new jsPDF();
+      doc.setFontSize(14);
+      doc.text("Análise e Observações:", 20, 20);
+      doc.setFontSize(11);
+      const linhas = doc.splitTextToSize(texto, 170);
+      doc.text(linhas, 20, 30);
+      doc.save("observacao_ocorrencias.pdf");
+    }
+
+    carregarDados();
+  </script>
+</body>
+</html>

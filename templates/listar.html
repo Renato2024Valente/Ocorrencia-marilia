@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-  <head>
-    <meta charset="UTF-8">
-    <title>Lista de Ocorrências</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <style>
+<head>
+  <meta charset="UTF-8" />
+  <title>Lista de Ocorrências</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
     body { font-family: Arial, sans-serif; background: #f1f5f9; margin: 0; }
     header { background-color: #003c70; color: white; padding: 20px; text-align: center; }
     .container { max-width: 960px; margin: auto; padding: 20px; background: white; }
@@ -19,31 +19,33 @@
     .btn-bulk { background: #6c757d; color: white; margin-right: 10px; }
     .checkbox { margin-right: 10px; }
     .summary { font-weight: bold; margin: 10px 0; }
-    canvas { background: #fff; border: 1px solid #ccc; margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ddd; padding: 8px; }
     th { background-color: #0078D4; color: white; text-align: left; }
+    textarea { width: 100%; resize: vertical; }
   </style>
-  </head>
-  <body>
-    <header>Gestão de Ocorrências (Bicudo)</header>
-    <div class="container">
-      <div class="top-bar">
-        <input type="text" id="filtro" placeholder="Filtrar por nome do aluno..." oninput="filtrar()" />
-        <div>
-          <button class="btn btn-bulk" onclick="selecionarTudo()">Selecionar tudo</button>
-          <button class="btn btn-bulk" onclick="excluirSelecionados()">Excluir selecionados</button>
-        </div>
-      </div>
-      <div class="summary" id="resumo">Total: 0 ocorrências | 0 alunos únicos | 0 selecionadas</div>
-      <div id="listaOcorrencias">Carregando...</div>
-      <canvas id="grafico" width="920" height="300"></canvas>
+</head>
+<body>
+  <header>Gestão de Ocorrências (Bicudo)</header>
+  <div class="container">
+    <div style="text-align: right; margin-bottom: 10px;">
+      <button class="btn btn-bulk" onclick="window.open('/dashboard', '_blank')">📊 Painel de Gráficos</button>
     </div>
+    <div class="top-bar">
+      <input type="text" id="filtro" placeholder="Filtrar por nome do aluno..." oninput="filtrar()" />
+      <div>
+        <button class="btn btn-bulk" onclick="selecionarTudo()">Selecionar tudo</button>
+        <button class="btn btn-bulk" onclick="excluirSelecionados()">Excluir selecionados</button>
+      </div>
+    </div>
+    <div class="summary" id="resumo">Total: 0 ocorrências | 0 alunos únicos | 0 selecionadas</div>
+    <div id="listaOcorrencias">Carregando...</div>
+  </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <script>
+  <script>
     let todas = [], selecionadas = new Set();
 
     function extrairNomeOriginal(nomeComData) {
@@ -53,7 +55,7 @@
     async function carregarOcorrencias() {
       const container = document.getElementById("listaOcorrencias");
       container.innerHTML = "<p>Carregando...</p>";
-     const res = await fetch("/ocorrencias");
+      const res = await fetch("/ocorrencias");
       const data = await res.json();
       todas = data;
       mostrarOcorrencias(data);
@@ -81,17 +83,19 @@
               <tr><td>Data</td><td>${new Date(data.dataHora).toLocaleString()}</td></tr>
               <tr><td>Ocorrências</td><td>${(data.ocorrencias || []).join(", ")}</td></tr>
               <tr><td>Descrição</td><td>${data.descricao || ""}</td></tr>
+              <tr><td>Observação</td><td><textarea id="obs_${data._id}">${data.observacao || ""}</textarea></td></tr>
+              <tr><td>Medida de Providências</td><td><textarea id="medida_${data._id}">${data.medidaProvidencia || ""}</textarea></td></tr>
             </table>
           </div>
           <div class="actions">
-            <button class="btn btn-pdf" onclick="gerarPDF('${nomeOriginal}', '${data.serie}', '${data.professor}', '${new Date(data.dataHora).toLocaleString()}', \`${(data.ocorrencias || []).join(", " )}\`, \`${data.descricao || ""}\`)">PDF</button>
+            <button class="btn btn-pdf" onclick="gerarPDF('${nomeOriginal}', '${data.serie}', '${data.professor}', '${new Date(data.dataHora).toLocaleString()}', \`${(data.ocorrencias || []).join(", ")}\`, \`${data.descricao || ""}\`, document.getElementById('obs_${data._id}').value, document.getElementById('medida_${data._id}').value)">PDF</button>
+            <button class="btn btn-del" onclick="salvarCampos('${data._id}')">Salvar</button>
           </div>
         `;
         container.appendChild(div);
       });
 
       atualizarResumo(lista.length, alunoContador);
-      gerarGrafico(alunoContador);
     }
 
     function toggleSelecionado(id) {
@@ -116,11 +120,11 @@
       document.getElementById("resumo").textContent = `Total: ${total} ocorrências | ${alunos} alunos únicos | ${selecionadas.size} selecionadas`;
     }
 
-    function gerarPDF(nome, serie, professor, data, ocorrencias, descricao) {
+    function gerarPDF(nome, serie, professor, data, ocorrencias, descricao, observacao, medidaProvidencia) {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       doc.setFillColor(240, 240, 240);
-      doc.rect(10, 10, 190, 100, 'F');
+      doc.rect(10, 10, 190, 130, 'F');
       doc.setFontSize(14);
       doc.setTextColor(0, 60, 112);
       doc.text(`Registro de Ocorrência`, 20, 20);
@@ -134,7 +138,9 @@
         ['Professor', professor],
         ['Data', data],
         ['Ocorrências', ocorrencias],
-        ['Descrição', descricao]
+        ['Descrição', descricao],
+        ['Observação', observacao],
+        ['Medida de Providências', medidaProvidencia],
       ];
 
       let y = 30;
@@ -143,34 +149,11 @@
         doc.text(`${label}:`, 20, y);
         doc.setFont(undefined, 'normal');
         const lines = doc.splitTextToSize(value, 120);
-        doc.text(lines, 60, y);
+        doc.text(lines, 70, y);
         y += (lines.length * 10);
       });
 
       doc.save(`Ocorrencia_${nome}.pdf`);
-    }
-
-    function gerarGrafico(dados) {
-      const ctx = document.getElementById("grafico").getContext("2d");
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: Object.keys(dados),
-          datasets: [{
-            label: "Ocorrências por Aluno",
-            data: Object.values(dados),
-            backgroundColor: "#0078D4"
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { title: { display: true, text: "Alunos" } },
-            y: { title: { display: true, text: "Ocorrências" }, beginAtZero: true }
-          }
-        }
-      });
     }
 
     function filtrar() {
@@ -184,15 +167,30 @@
       if (!confirm("Deseja excluir as ocorrências selecionadas?")) return;
 
       for (const id of selecionadas) {
-        await fetch(`http://localhost:3000/ocorrencias/${id}`, {
-          method: 'DELETE'
-        });
+        await fetch(`/ocorrencias/${id}`, { method: 'DELETE' });
       }
       selecionadas.clear();
       carregarOcorrencias();
     }
 
+    async function salvarCampos(id) {
+      const observacao = document.getElementById(`obs_${id}`).value;
+      const medidaProvidencia = document.getElementById(`medida_${id}`).value;
+
+      const res = await fetch(`/ocorrencias/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ observacao, medidaProvidencia })
+      });
+
+      if (res.ok) {
+        alert("Campos salvos com sucesso!");
+      } else {
+        alert("Erro ao salvar os campos.");
+      }
+    }
+
     carregarOcorrencias();
   </script>
-  </body>
+</body>
 </html>
